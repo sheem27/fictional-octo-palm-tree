@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>إكس أو الإحترافية</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --color-x: #06b6d4;
+            --glow-x: drop-shadow(0 0 12px rgba(6, 182, 212, 0.6));
+            --color-o: #f43f5e;
+            --glow-o: drop-shadow(0 0 12px rgba(244, 63, 94, 0.6));
+        }
+        body {
+            font-family: 'Tajawal', sans-serif;
+            -webkit-user-select: none;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            background: radial-gradient(circle at 50% 50%, #1e293b 0%, #0f172a 100%);
+            color: white;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            margin: 0;
+            overflow: hidden;
+        }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+        .cell {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .cell:active { transform: scale(0.92); background: rgba(255, 255, 255, 0.08); }
+        .mark-x { color: var(--color-x); filter: var(--glow-x); }
+        .mark-o { color: var(--color-o); filter: var(--glow-o); }
+        .pop-in { animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+        @keyframes popIn {
+            0% { transform: scale(0.3) rotate(-15deg); opacity: 0; }
+            100% { transform: scale(1) rotate(0deg); opacity: 1; }
+        }
+        #modal { opacity: 0; visibility: hidden; transition: all 0.3s ease; }
+        #modal.active { opacity: 1; visibility: visible; }
+        .mode-btn.active { background: rgba(255, 255, 255, 0.1); color: white; border-color: rgba(255, 255, 255, 0.2); }
+    </style>
+</head>
+<body>
+
+    <div class="w-full max-w-[400px] mb-6 flex flex-col items-center gap-4 p-4">
+        <h1 class="text-4xl font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">
+            X <span class="text-slate-400 font-light">O</span> <span class="text-rose-400">PRO</span>
+        </h1>
+        <div class="flex glass-panel rounded-full p-1 w-full relative">
+            <button id="mode-pvp" class="mode-btn active flex-1 py-2 text-sm font-bold rounded-full text-slate-400 border border-transparent transition-all z-10" onclick="setMode('pvp')">👤 ضد 👤</button>
+            <button id="mode-cpu" class="mode-btn flex-1 py-2 text-sm font-bold rounded-full text-slate-400 border border-transparent transition-all z-10" onclick="setMode('cpu')">🤖 ضد الآلة</button>
+        </div>
+    </div>
+
+    <div class="glass-panel w-full max-w-[360px] rounded-3xl p-5 mb-6 flex justify-between items-center mx-4">
+        <div class="flex flex-col items-center">
+            <span class="text-xs text-slate-400 font-bold mb-1">اللاعب X</span>
+            <span id="score-x" class="text-3xl font-black text-cyan-400">0</span>
+        </div>
+        <div class="flex flex-col items-center border-x border-slate-700/50 px-6">
+            <span class="text-xs text-slate-400 font-bold mb-1">تعادل</span>
+            <span id="score-draws" class="text-xl font-bold text-slate-300">0</span>
+        </div>
+        <div class="flex flex-col items-center">
+            <span class="text-xs text-slate-400 font-bold mb-1">اللاعب O</span>
+            <span id="score-o" class="text-3xl font-black text-rose-500">0</span>
+        </div>
+    </div>
+
+    <div class="glass-panel rounded-[2rem] p-4 w-full max-w-[360px] aspect-square relative mx-4">
+        <div class="grid grid-cols-3 gap-3 h-full w-full" id="board"></div>
+    </div>
+
+    <div id="modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/90 backdrop-blur-sm">
+        <div class="glass-panel rounded-3xl p-8 w-full max-w-[300px] text-center">
+            <h2 id="modal-title" class="text-3xl font-black mb-6">فاز X!</h2>
+            <button onclick="startNewGame()" class="w-full bg-cyan-500 hover:bg-cyan-600 text-white font-bold py-3 px-6 rounded-2xl transition-all">لعب مجدد</button>
+        </div>
+    </div>
+
+    <script>
+        let board = ['', '', '', '', '', '', '', '', ''];
+        let currentPlayer = 'X';
+        let isGameActive = true;
+        let gameMode = 'pvp';
+        let scores = { X: 0, O: 0, draws: 0 };
+
+        const winConditions = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+
+        function init() {
+            const boardEl = document.getElementById('board');
+            boardEl.innerHTML = '';
+            board.forEach((_, i) => {
+                const cell = document.createElement('div');
+                cell.className = 'cell rounded-2xl flex items-center justify-center text-5xl font-black cursor-pointer';
+                cell.onclick = () => handleMove(i);
+                boardEl.appendChild(cell);
+            });
+        }
+
+        function setMode(mode) {
+            gameMode = mode;
+            document.getElementById('mode-pvp').classList.toggle('active', mode === 'pvp');
+            document.getElementById('mode-cpu').classList.toggle('active', mode === 'cpu');
+            startNewGame();
+        }
+
+        function handleMove(i) {
+            if (board[i] || !isGameActive) return;
+            makeMove(i, 'X');
+            if (isGameActive && gameMode === 'cpu') {
+                setTimeout(cpuMove, 400);
+            }
+        }
+
+        function makeMove(i, player) {
+            board[i] = player;
+            const cell = document.getElementById('board').children[i];
+            cell.innerHTML = `<span class="pop-in ${player === 'X' ? 'mark-x' : 'mark-o'}">${player}</span>`;
+            checkResult();
+            currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
+        }
+
+        function cpuMove() {
+            const empty = board.map((v, i) => v === '' ? i : null).filter(v => v !== null);
+            if (empty.length && isGameActive) {
+                const random = empty[Math.floor(Math.random() * empty.length)];
+                makeMove(random, 'O');
+            }
+        }
+
+        function checkResult() {
+            let won = false;
+            for (let condition of winConditions) {
+                const [a, b, c] = condition;
+                if (board[a] && board[a] === board[b] && board[a] === board[c]) {
+                    won = true;
+                    break;
+                }
+            }
+            if (won) {
+                scores[currentPlayer]++;
+                endGame(`فاز ${currentPlayer}!`);
+            } else if (!board.includes('')) {
+                scores.draws++;
+                endGame("تعادل!");
+            }
+            updateScores();
+        }
+
+        function updateScores() {
+            document.getElementById('score-x').innerText = scores.X;
+            document.getElementById('score-o').innerText = scores.O;
+            document.getElementById('score-draws').innerText = scores.draws;
+        }
+
+        function endGame(msg) {
+            isGameActive = false;
+            document.getElementById('modal-title').innerText = msg;
+            document.getElementById('modal').classList.add('active');
+        }
+
+        function startNewGame() {
+            board = ['', '', '', '', '', '', '', '', ''];
+            currentPlayer = 'X';
+            isGameActive = true;
+            document.getElementById('modal').classList.remove('active');
+            init();
+        }
+
+        init();
+    </script>
+</body>
+</html>
+
